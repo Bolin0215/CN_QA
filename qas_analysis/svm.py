@@ -7,9 +7,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.svm import SVC
 from sklearn import metrics
-from util import Loader
+from utils import *
 import numpy as np
-
+import utils
 '''
 qa_class:
     ns : 地名
@@ -35,7 +35,7 @@ class SVM(object):
         # Loader.add_unknown_words(self.w2v, self.vocab)
         # self.W, self.word_idx_map = Loader.get_W(self.w2v)
         
-        self.cl = Pipeline([('vec', TfidfVectorizer(ngram_range = (1,1))),\
+        self.cl = Pipeline([('vec', TfidfVectorizer(ngram_range = (1,2))),\
                      ('svm', SVC(kernel='linear'))])
 
         self.c2id, self.id2c = Loader.build_class()
@@ -53,26 +53,21 @@ class SVM(object):
         self.cl.fit(train_data, train_target)
 
         predict = self.cl.predict(test_data)
+        utils.forward(self)
         Loader.save_model(self.cl, self.model_path, "svm")
 
         print (metrics.accuracy_score(test_target, predict))
     
     def forward(self, sent):
         if '下一句' in sent or '下句' in sent:
-            print ('nexts')
-            return
+            return 'nexts'
         if '上一句' in sent or '上句' in sent:
-            print ('befs')
-            return
+            return 'befs'
 
         sent = ' '.join(jieba.lcut(sent))
-        # sent = jieba.lcut(sent)
-        # ss = []
-        # for s in sent:
-        #     ss.append(self.word_idx_map[s])
 
         predict = self.cl.predict([sent])
-        print (self.id2c[predict[0]])
+        return (self.id2c[predict[0]])
 
     def get_train_test_data(self):
         train_data, test_data = [], []

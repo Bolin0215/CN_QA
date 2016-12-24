@@ -4,8 +4,10 @@ import json, math
 from sklearn.externals import joblib
 import numpy as np
 from collections import defaultdict
-import svm, jieba
-# from lstm import LSTM
+import jieba
+import os    
+os.environ['THEANO_FLAGS'] = "device=gpu0"
+import theano
 
 class Loader:
     qa_class_path = ""
@@ -38,19 +40,8 @@ class Loader:
 
     @staticmethod
     def build_class():
-        ret = Loader.load_qa_class()
-        key2id = {}
-        id2key = {}
-        num = 0
-        for key, value in ret.items():
-            key2id[key] = num
-            id2key[num] = key
-            num += 1
-        key2id['nexts'] = num
-        id2key[num] = 'nexts'
-        num += 1
-        key2id['befs'] = num
-        id2key[num] = 'befs'
+        key2id = {'n': 0, 'i': 1, 'nexts': 7, 'nr': 2, 't': 3, 'nt': 4, 'm': 5, 'ns': 6, 'befs': 8}
+        id2key = {0 : 'n', 1: 'i', 7:'nexts', 2 :'nr', 3:'t', 4:'nt', 5:'m', 6:'ns', 8:'befs'}
         return key2id, id2key
 
     @staticmethod
@@ -66,7 +57,10 @@ class Loader:
         if model == "svm":
             clf = joblib.load(modelpath)
         elif model == "lstm":
-            clf = model_from_json(open(modelpath).read())    
+            from keras.models import model_from_json
+            f = open(modelpath)
+            clf = model_from_json(f.read())
+            f.close()
             clf.load_weights(paramspath)   
         return clf
 
@@ -112,8 +106,8 @@ class Loader:
         """
         vocab_size = len(word_vecs)
         word_idx_map = dict()
-        W = np.zeros(shape=(vocab_size, k), dtype='float32')            
-        i = 0
+        W = np.zeros(shape=(vocab_size+1, k), dtype='float32')
+        i = 1
         for word in word_vecs:
             W[i] = word_vecs[word]
             word_idx_map[word] = i
@@ -130,14 +124,17 @@ class Loader:
             if word not in word_vecs and vocab[word] >= min_df:
                 word_vecs[word] = np.random.uniform(-0.25,0.25,k) 
 
-what_word = set(['什么','哪一位','谁','多少','多','第几','何时','是？','为？',\
-                '哪位', '哪个', '哪'])
+what_word = set(['什么','哪一位','谁','多少','哪座','第几','何时','是？','为？',\
+                '哪位', '哪个', '哪','多'])
+what_class = { '哪国' : 'ns',\
+               '哪位':'nr',\
+                }
 
 def extract_word(q):
     if q[-1] == u"是" or q[-1] == u"为":
         return '?'
     seg_list = jieba.lcut(q)
-    print (seg_list)
+    
 
     for i in range(len(seg_list)):
         for word in what_word:
@@ -150,40 +147,46 @@ def extract_word(q):
                 return seg
     return None
 
-def main():
-    qa = svm.SVM()
+def main(model):
+    qa = None
+    if model == 'lstm':
+        import lstm
+        qa = lstm.LSTM()
+    else:
+        import svm
+        qa = svm.SVM()
+    if qa == None:
+        qa = svm.SVM()
     qa.train_save()
-    sent = '澳大利亚 是 南半球 面积 第 几 大 的 国家'
-    print (extract_word(sent))
-    qa.forward(sent)
+    
+def forward(qa):
+    with open('../questions/questions.txt','r') as f:
+        contents = f.readlines()
 
-def parser(sent):
-    from pyltp import Segmentor
-    segmentor = Segmentor()  # 初始化实例
-    segmentor.load('../../data/ltp_data/cws.model')  # 加载模型
-    words = segmentor.segment(sent)  # 分词
-    segmentor.release() 
-    from pyltp import Postagger
-    postagger = Postagger() # 初始化实例
-    postagger.load('../../data/ltp_data/pos.model')  # 加载模型
-    postags = postagger.postag(words)  # 词性标注
-    postagger.release() 
-    from pyltp import NamedEntityRecognizer
-    recognizer = NamedEntityRecognizer() # 初始化实例
-    recognizer.load('../../data/ltp_data/ner.model')  # 加载模型
-    netags = recognizer.recognize(words, postags)  # 命名实体识别
-    recognizer.release()
-    from pyltp import Parser
-    parser = Parser() # 初始化实例
-    parser.load('../../data/ltp_data/parser.model')  # 加载模型
-    arcs = parser.parse(words, postags)  # 句法分析
-    print ("\t".join("%d:%s" % (arc.head, arc.relation) for arc in arcs))
-    parser.release()
+    res, keys = [], []
+    for sent in contents:
+        sent = sent.strip().split()[1]
+        res.append(qa.forward(sent))
+        keys.append(extract_word(sent))
+    with open('../questions/res.txt','w') as f:
+        for i in range(len(contents)):
+            f.write(contents[i].strip())
+            if keys[i]:
+                f.write(' ' + keys[i])
+            if keys[i] in what_class.keys():
+                f.write(' ' + what_class[keys[i]])
+            else:
+                f.write(' ' + res[i])
+            f.write('\n')
+    
+
 if __name__ == "__main__":
-    # revs, vocab = Loader.build_data_cnn()
-    # vec = Loader.load_word_vec(vocab)
-    # print (vec["国家"])
-    parser('周恩来是哪个月份去世的')
 
+    import sys
+    if len(sys.argv) != 2:
+        print ('Error')
+        sys.exit(0)
+        
+    main(sys.argv[1])
     pass
 
