@@ -1,0 +1,18 @@
+I.分割文件
+  1)将中文维基预处理得到的文件wiki_00放到CN_QA/wiki_search_engine 目录下
+  2)运行file_maker.py
+  将在CN_QA/wiki_search_engine/corpus下得到按段落分行的3066个文件
+  并在CN_QA/wiki_search_engine/corpus_sentence下得到按句子分行的3066个文件
+
+II. 建立倒排索引
+  运行index_builder.py
+  将在该目录下得到文件index_v2和index_sentence，分别为精确到<文档，段落>、<文档，句子>的倒排索引
+  
+III. 得到候选句文档
+  运行search_from_wiki.py
+  目前直接运行将得到段落搜索->句子集合->句子打分排序->top 10候选的文档 （内容同candidates.para2sent.all）
+  实际上可以通过修改main方法采取不同的搜索策略
+  另外提供了几种基本功能的测试函数test1，test2，test3，可供尝试
+
+*注意1：该目录下的部分数据文件以及wiki_00是代码正确运行的基础，如有需要请调整参数或硬编码的路径
+*注意2: 搜索算法速度一般，为顺利运行，需要较大内存。建议采用多线程以加快候选句文档的生成
